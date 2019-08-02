@@ -24,7 +24,7 @@ def unique_with_batch(label, bid):
     label = np.array(label)
     bid = np.array(bid)
     lb = np.stack((label, bid))
-    _, label2 = np.unqiqe(lb, axis=1, return_inverse=True)
+    _, label2 = np.unique(lb, axis=1, return_inverse=True)
     return label2
 
 
@@ -50,7 +50,7 @@ def AMI(pred, truth, bid=None):
     return adjusted_mutual_info_score(pred, truth)
 
 
-def BD(data_sum, clusters_sum, clusters_sum_counts, data_fixed, clusters_fixed, clusters_fixed_counts):
+def BD(data_sum, clusters_sum, clusters_sum_counts, data_fixed, clusters_fixed, clusters_fixed_counts, weights):
     """
     Helper function for SBD function.
     """
@@ -70,18 +70,20 @@ def BD(data_sum, clusters_sum, clusters_sum_counts, data_fixed, clusters_fixed, 
 
 
 # pred, truth are 1D arrays of labels in the same order
-def SBD(pred, truth, bid=None):
+def SBD(pred, truth, weights=None, bid=None):
     '''
     Compute the Symmetric Best Dice (SBD) Score for Instance Segmentation.
     '''
     if bid:
         pred = unique_with_batch(pred, bid)
         truth = unique_with_batch(truth, bid)
+    if weights is None:
+        weights = np.ones(len(pred))
     pred_clusters, pred_counts = np.unique(pred, return_counts=True)
     truth_clusters, truth_counts = np.unique(truth, return_counts=True)
     
-    bd1 = BD(pred, pred_clusters, pred_counts, truth, truth_clusters, truth_counts)
-    bd2 = BD(truth, truth_clusters, truth_counts, pred, pred_clusters, pred_counts)
+    bd1 = BD(pred, pred_clusters, pred_counts, truth, truth_clusters, truth_counts, weights)
+    bd2 = BD(truth, truth_clusters, truth_counts, pred, pred_clusters, pred_counts, weights)
     sbd = np.minimum(bd1, bd2)
 
     return sbd

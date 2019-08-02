@@ -65,8 +65,8 @@ class FullEdgeModel(torch.nn.Module):
             - data[2] edge_index
             - data[3] batch
         output:
-        dictionary, with
-            'edge_pred': torch.tensor with edge prediction weights
+        list with
+            0: torch.tensor with edge prediction weights
         """
         # get output
         outdict = self.edge_predictor(data[0], data[2], data[1], data[3])
@@ -91,7 +91,8 @@ class FullEdgeChannelLoss(torch.nn.Module):
         self.loss = self.model_config.get('loss', 'CE')
         
         if self.loss == 'CE':
-            self.lossfn = torch.nn.CrossEntropyLoss(reduction=self.reduction)
+#             self.lossfn = torch.nn.CrossEntropyLoss(reduction=self.reduction)
+            self.lossfn = torch.nn.CrossEntropyLoss(reduction=self.reduction, weight=torch.Tensor([10, 1]).cuda())
         elif self.loss == 'MM':
             p = self.model_config.get('p', 1)
             margin = self.model_config.get('margin', 1.0)
@@ -102,26 +103,30 @@ class FullEdgeChannelLoss(torch.nn.Module):
         
     def forward(self, out, edge_assn, edge_index, batch):
         """
-        out:
-            dictionary output from GNN Model
-            keys:
-                'edge_pred': predicted edge weights from model forward
+        out: list with
+            0: torch.tensor with edge prediction weights
         """
-        edge_pred = out['edge_pred']
-        edge_assn = edge_assn[0]
+        edge_pred = torch.cat(out[0], 0)
+        edge_assn = torch.cat(edge_assn, 0)
         total_loss = self.lossfn(edge_pred, edge_assn)
-        
         # compute accuracy of assignment
         # need to multiply by batch size to be accurate
         _, pred_inds = torch.max(edge_pred, 1)
-        total_acc = (torch.max(batch[0]) + 1) * (pred_inds == edge_assn).sum().float()/len(edge_assn)
+        total_acc = (torch.max(torch.cat(batch, 0)) + 1)/len(batch) * (pred_inds == edge_assn).sum().float()/len(edge_assn)
         
-        print('edge_assn shape', edge_assn.cpu().numpy().flatten().shape)
-        print('pred_inds shape', pred_inds.cpu().detach().numpy().flatten().shape)
-        max_node = int(torch.max(edge_index[0]))
-        node_truth = edge_labels_to_node_labels(None, edge_index[0].cpu().numpy().T, edge_assn.cpu().numpy().flatten(), node_len=max_node)
-        node_preds = edge_labels_to_node_labels(None, edge_index[0].cpu().numpy().T, pred_inds.cpu().detach().numpy().flatten(), node_len=max_node)
-        sbd = SBD(node_preds, node_truth)
+        sbd = 0
+#         import time
+#         max_node = int(torch.max(edge_index[0]))
+#         t1 = time.time()
+#         node_truth = edge_labels_to_node_labels(edge_index[0].cpu().numpy().T, edge_assn.cpu().reshape(-1).float())
+#         t2 = time.time()
+#         node_preds = edge_labels_to_node_labels(edge_index[0].cpu().numpy().T, pred_inds.cpu().detach().reshape(-1).float())
+#         t3 = time.time()
+#         print(t3 - t2)
+#         print('node_preds', node_preds)
+#         print(t2 - t1)
+#         print('node_truth', node_truth)
+#         sbd = SBD(node_preds, node_truth, batch)
         
         return {
             'sbd': sbd,

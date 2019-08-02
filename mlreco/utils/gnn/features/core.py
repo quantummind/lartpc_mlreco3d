@@ -3,6 +3,7 @@ import numpy as np
 from mlreco.utils.gnn.features.cone import cone_features
 from mlreco.utils.gnn.features.spectral import spectral_features
 from mlreco.utils.gnn.features.dbscan import dbscan_features
+from sklearn.cluster import DBSCAN
 
 # node features: x, y, z
 # edge features: distance
@@ -14,8 +15,15 @@ def basic_features(data, em_filter, edges):
     return nf, ef
 
 # returns positions, edges, node features, edge features (assumes batch size == 1)
-def generate_graph(data, feature_types=['basic', 'cone', 'spectral', 'dbscan']):
+def generate_graph(data, feature_types=['basic', 'cone', 'spectral', 'dbscan'], filter_compton=False):
     em_filter = np.where(data['segment_label'] == 2)[0]
+    if filter_compton:
+        clusters = DBSCAN(eps=1.01, min_samples=3).fit(data['segment_label'][:, :3]).labels_
+        u, c = np.unique(clusters, return_counts=True)
+        for l in u[np.where(c < 30)]:
+            clusters[np.where(clusters == l)] = -1
+        compton_filter = np.where(clusters != -1)[0]
+        em_filter = np.intersect1d(em_filter, compton_filter)
     positions = data['segment_label'][em_filter][:, :3]
     edges = create_edge_indices(positions)
     
@@ -39,8 +47,15 @@ def generate_graph(data, feature_types=['basic', 'cone', 'spectral', 'dbscan']):
     return positions, edges, all_nf, all_ef
 
 # returns positions, edges, node features, edge features (assumes batch size == 1)
-def generate_truth(data, positions=None, edges=None):
+def generate_truth(data, positions=None, edges=None, filter_compton=False):
     em_filter = np.where(data['segment_label'] == 2)[0]
+    if filter_compton:
+        clusters = DBSCAN(eps=1.01, min_samples=3).fit(data['segment_label'][:, :3]).labels_
+        u, c = np.unique(clusters, return_counts=True)
+        for l in u[np.where(c < 30)]:
+            clusters[np.where(clusters == l)] = -1
+        compton_filter = np.where(clusters != -1)[0]
+        em_filter = np.intersect1d(em_filter, compton_filter)
     if positions is None:
         positions = data['segment_label'][em_filter][:, :3]
     if edges is None:

@@ -120,7 +120,6 @@ class trainval(object):
 
             if not torch.cuda.is_available():
                 data = data[0]
-
             result = self._net(data)
 
 
@@ -160,7 +159,6 @@ class trainval(object):
 
         self._net = DataParallel(model(self._model_config),
                                       device_ids=self._gpus)
-
         if self._train:
             self._net.train().cuda() if len(self._gpus) else self._net.train()
         else:

@@ -27,38 +27,44 @@ class FullEdgeNodeOnlyModel(torch.nn.Module):
         
         n_nf = int(self.model_config['n_node_features'])
         n_ef = int(self.model_config['n_edge_features'])
+        
+        class EdgeModel(torch.nn.Module):
+            def __init__(self, leak):
+                super(EdgeModel, self).__init__()
+                
+                self.leak = leak
+                self.bn_node = BatchNorm1d(n_nf)
+                self.bn_edge = BatchNorm1d(n_ef)
 
-        self.bn_node = BatchNorm1d(n_nf)
-        self.bn_edge = BatchNorm1d(n_ef)
-        
-        self.edge_pred_mlp = Seq(
-            Lin(n_nf*2 + n_ef, 64),
-            LeakyReLU(self.leak),
-            Lin(64, 64),
-            LeakyReLU(self.leak),
-            Lin(64,32),
-            LeakyReLU(self.leak),
-            Lin(32,16),
-            LeakyReLU(self.leak),
-            Lin(16,8),
-            LeakyReLU(self.leak),
-            Lin(8,2)
-        )
-        
-        def edge_pred_model(source, target, edge_attr, u, batch):
-            out = torch.cat([source, target, edge_attr], dim=1)
-            out = self.edge_pred_mlp(out)
-            return out
-        
-        self.edge_predictor = MetaLayer(edge_pred_model, None, None)
+                self.edge_pred_mlp = Seq(
+                    Lin(n_nf*2 + n_ef, 64),
+                    LeakyReLU(self.leak),
+                    Lin(64, 64),
+                    LeakyReLU(self.leak),
+                    Lin(64,32),
+                    LeakyReLU(self.leak),
+                    Lin(32,16),
+                    LeakyReLU(self.leak),
+                    Lin(16,8),
+                    LeakyReLU(self.leak),
+                    Lin(8,2)
+                )
+
+            def edge_pred_model(self, source, target, edge_attr, u, batch):
+                out = torch.cat([source, target, edge_attr], dim=1)
+                out = self.edge_pred_mlp(out)
+                return out
+            
+            def forward(self, x, edge_index, e, u, batch):
+                e = self.bn_edge(e)
+                x = self.bn_node(x)
+                return self.edge_pred_model(x, edge_index, e, u=None, batch=batch)
+
+        self.edge_predictor = MetaLayer(EdgeModel(self.leak))
     
     def forward(self, x, edge_index, e, xbatch):
-        
-        e = self.bn_edge(e)
-        x = self.bn_node(x)
-        
         x, e, u = self.edge_predictor(x, edge_index, e, u=None, batch=xbatch)
-        
-        return {
-            'edge_pred': e
-        }
+        return [[e]]
+#         return {
+#             'edge_pred': e
+#         }

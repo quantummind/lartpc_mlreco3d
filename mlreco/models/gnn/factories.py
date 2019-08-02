@@ -8,6 +8,7 @@ def edge_model_dict():
     from . import edge_node_only
     from . import full_edge_node_only
     from . import edge_nnconv
+    from . import full_edge_nnconv
     from . import edge_econv
     
     models = {
@@ -16,6 +17,7 @@ def edge_model_dict():
         "edge_node_only" : edge_node_only.EdgeNodeOnlyModel,
         "full_edge_node_only" : full_edge_node_only.FullEdgeNodeOnlyModel,
         "nnconv" : edge_nnconv.NNConvModel,
+        "full_nnconv" : full_edge_nnconv.FullNNConvModel,
         "econv" : edge_econv.EdgeConvModel
     }
     

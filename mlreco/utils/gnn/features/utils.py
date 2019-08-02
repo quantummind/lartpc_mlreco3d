@@ -2,6 +2,9 @@ import itertools
 import numpy as np
 from scipy.spatial import Delaunay
 
+from topologylayer.util import get_clusts
+import torch
+
 def node_labels_to_edge_labels(edges, node_labels):
     label_starts = node_labels[edges[:, 0]]
     label_ends = node_labels[edges[:, 1]]
@@ -15,14 +18,19 @@ def find_parent(parent, i):
     return parent[i]
 
 # union find
-def edge_labels_to_node_labels(positions, edges, edge_labels, threshold=0.5, node_len=None):
-    print('node_len', node_len)
-    print('max edge label', np.amax(edge_labels))
+# def edge_labels_to_node_labels(edges, edge_labels_raw, threshold=0.5):
+#     if isinstance(edge_labels_raw, torch.Tensor):
+#         edge_labels = edge_labels_raw.numpy()
+#     else:
+#         edge_labels = edge_labels_raw
+#     n = np.amax(edges) + 1
+#     labels = get_clusts(edges, edge_labels, n, 0.5)
+#     return np.array(labels)
+
+def edge_labels_to_node_labels(edges, edge_labels, threshold=0.5):
+#     edge_labels = edge_labels_raw.numpy()
     on_edges = edges[np.where(edge_labels > threshold)[0]]
-    if node_len is not None:
-        node_labels = np.arange(node_len)
-    else:
-        node_labels = np.arange(len(positions))
+    node_labels = np.arange(int(np.amax(edges)) + 1)
     for a, b in on_edges:
         p1 = find_parent(node_labels, a)
         p2 = find_parent(node_labels, b)
