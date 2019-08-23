@@ -3,15 +3,18 @@ import numpy as np
 from mlreco.utils.gnn.cluster import form_clusters_new
 from mlreco.utils.gnn.primary import assign_primaries_unique
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.cluster import DBSCAN
 
-def find_shower_cone(dbscan, em_primaries, energy_data, types, length_factor=14.107334041, slope_percentile=52.94032412, slope_factor=5.86322059):
+def find_shower_cone(em_primaries, positions, length_factor=14.107334041, slope_percentile=52.94032412, slope_factor=5.86322059):
     """
-    dbscan: data parsed from "dbscan_label": ["parse_dbscan", "sparse3d_fivetypes"]
     em_primaries: data parsed from "em_primaries" : ["parse_em_primaries", "sparse3d_data", "particle_mcst"]
-    energy_data: data parsed from "input_data": ["parse_sparse3d_scn", "sparse3d_data"]
+    positions: Nx3 array of EM shower voxel positions
     
     returns a list of length len(em_primaries) containing np arrays, each of which contains the indices corresponding to the voxels in the cone of the corresponding EM primary
     """
+    dbscan = DBSCAN(eps=1.01, min_samples=3).fit(positions).labels_.reshape(-1, 1)
+    dbscan = np.concatenate((positions, np.zeros((len(positions), 1)), dbscan), axis=1)
+    
     clusts = form_clusters_new(dbscan)
     selected_voxels = []
     true_voxels = []
@@ -21,7 +24,7 @@ def find_shower_cone(dbscan, em_primaries, energy_data, types, length_factor=14.
         selected_voxels.append(np.arange(len(dbscan)))
         print('all clusters identified as Compton')
         return selected_voxels
-    assigned_primaries = assign_primaries_unique(em_primaries, clusts, types).astype(int)
+    assigned_primaries = assign_primaries_unique(em_primaries, clusts, np.concatenate((positions, np.zeros((len(positions), 2))), axis=1)).astype(int)
     for i in range(len(assigned_primaries)):
         if assigned_primaries[i] != -1:
             c = clusts[assigned_primaries[i]]
@@ -31,11 +34,10 @@ def find_shower_cone(dbscan, em_primaries, energy_data, types, length_factor=14.
 
             # find primary cluster axis
             primary_points = dbscan[c][:, :3]
-            primary_energies = energy_data[c][:, -1]
             if np.sum(primary_energies) == 0:
                 selected_voxels.append(np.array([]))
                 continue
-            primary_center = np.average(primary_points.T, axis=1, weights=primary_energies)
+            primary_center = np.average(primary_points.T, axis=1)
             primary_axis = primary_center - em_point
 
             # find furthest particle from cone axis
@@ -53,9 +55,7 @@ def find_shower_cone(dbscan, em_primaries, energy_data, types, length_factor=14.
 
             classified_indices = []
             for j in range(len(dbscan)):
-                point = types[j]
-                if point[-1] < 2:
-                    continue
+                point = positions[j]
                 coord = point[:3]
                 axis_dist = np.dot(coord - em_point, cone_axis)
                 if 0 <= axis_dist and axis_dist <= cone_length:
@@ -74,13 +74,9 @@ def find_shower_cone(dbscan, em_primaries, energy_data, types, length_factor=14.
 # node features: [# voxels in cluster]
 # edge features: [edge labels]
     # label = 1 if in cone, 0.5 if knn-assigned to cone
-def cone_features(data, em_filter, edges):
-    dbscan = data['dbscan_label'][em_filter]
-    energy_data = data['input_data'][em_filter]
-    em_primaries = data['em_primaries']
-    types = data['segment_label'][em_filter]
-    cone_assignments = find_shower_cone(dbscan, em_primaries, energy_data, types)
-    node_labels = -1*np.ones(len(dbscan))
+def cone_features(positions, em_primaries, edges):
+    cone_assignments = find_shower_cone(em_primaries, positions)
+    node_labels = -1*np.ones(len(positions))
     for l in range(len(cone_assignments)):
         if len(cone_assignments[l]) > 0:
             node_labels[cone_assignments[l]] = l
@@ -94,10 +90,9 @@ def cone_features(data, em_filter, edges):
     
     # classify unlabeled points with nearest neighbors to cone classifications
     if len(labeled[0]) == 0:
-        node_labels = np.ones(len(dbscan))
+        node_labels = np.ones(len(positions))
         edge_labels = node_labels_to_edge_labels(edges, node_labels).astype(np.float64)
     elif len(unlabeled[0]) > 0:
-        positions = types[:, :3]
         classified_positions = positions[labeled]
         unclassified_positions = positions[unlabeled]
         cl = KNeighborsClassifier(n_neighbors=2)

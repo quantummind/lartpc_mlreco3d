@@ -6,15 +6,15 @@ from sklearn.cluster import DBSCAN
 
 # node features: [# voxels in cluster, cluster center, cluster "orientation", unit vector of cluster direction]*len(eps_values)
 # edge features: [labels based on DBSCAN clusters for eps_values[0], ..., labels based on DBSCAN clusters for eps_values[-1]]
-def dbscan_features(data, em_filter, edges):
+def dbscan_features(positions, em_positions, edges):
     eps = [2, 15, 30, 60]
     delta = 0.0   # regularization
-    num_node_features = 7
+    num_node_features = 8
     orientation = False
     if orientation:
         num_node_features += 9
     
-    positions = data['segment_label'][em_filter][:, :3]
+    
     nf = []
     ef = []
     for e in eps:
@@ -26,6 +26,16 @@ def dbscan_features(data, em_filter, edges):
             if clusters[i] == -1:
                 continue
             x_uncentered = positions[np.where(node_labels == clusters[i])]
+            
+            # look for EM primaries in cluster
+            n_primaries = 0
+            for p in x_uncentered:
+                for q in em_positions:
+                    if np.array_equal(p, q):
+                        n_primaries += 1
+                        break
+            n_primaries = np.array([n_primaries])
+            
             center = np.mean(x_uncentered, axis=0)
             # center data
             x = x_uncentered - center
@@ -56,9 +66,9 @@ def dbscan_features(data, em_filter, edges):
                 w = w / w[2] # normalize top eigenvalue to be 1
                 # orientation matrix
                 B = v.dot(np.diag(w)).dot(v.T)
-                cluster_feature = np.concatenate(([len(x)], center, B.flatten(), v0))
+                cluster_feature = np.concatenate(([len(x)], center, B.flatten(), v0, n_primaries))
             else:
-                cluster_feature = np.concatenate(([len(x)], center, v0))
+                cluster_feature = np.concatenate(([len(x)], center, v0, n_primaries))
             node_features[np.where(node_labels == clusters[i])] = cluster_feature
         node_features[np.where(node_labels == -1)] = np.array([0]*num_node_features)
         nf.append(node_features)

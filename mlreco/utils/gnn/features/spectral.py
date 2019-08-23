@@ -51,7 +51,7 @@ def adjacency(positions, edges, eps_regularization=0.0001):
     n = len(positions)
     dists = dist_metric(positions[edges[:, 0]], positions[edges[:, 1]])
     weights = dists
-    print('distance weights', weights)
+#     print('distance weights', weights)
 #     directions = direction_metric(edges, positions, dists)
 #     weights = directions*dists
 #     print('directions', directions)
@@ -69,7 +69,7 @@ def adjacency(positions, edges, eps_regularization=0.0001):
     D_norm = diags(D_norm_vec)
     
     A_norm = D_norm * A * D_norm
-    print('A normalized')
+#     print('A normalized')
     
     return A_norm
     
@@ -90,8 +90,7 @@ def spectral_node_features(edges, vecs, cluster_assignments):
 
 # node features: [# voxels in cluster, embedded coord 1, ..., embedded coord n_vecs]
 # edge features: [voxel pair distance in embedded space, edge labels]*len(n_clusts)
-def spectral_features(data, em_filter, edges):
-    positions = data['segment_label'][em_filter][:, :3]
+def spectral_features(positions, edges):
     vecs = to_spectral_space(positions, edges)
     n_clusts = [4, 8]
     nf = []
